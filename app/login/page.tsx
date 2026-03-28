@@ -65,7 +65,12 @@ function LoginContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {error && (
+            {error === 'unauthorized' && (
+              <p className="text-sm text-destructive text-center mb-4">
+                This app is private. You are not authorized to access it.
+              </p>
+            )}
+            {error && error !== 'unauthorized' && (
               <p className="text-sm text-destructive text-center mb-4">
                 Authentication failed. Please try again.
               </p>

@@ -36,5 +36,15 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Allowlist: only permit specific email addresses
+  const ALLOWED_EMAILS = ['libin.cheeran@gmail.com']
+  if (user && !ALLOWED_EMAILS.includes(user.email ?? '')) {
+    await supabase.auth.signOut()
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set('error', 'unauthorized')
+    return NextResponse.redirect(url)
+  }
+
   return supabaseResponse
 }
