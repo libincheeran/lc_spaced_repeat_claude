@@ -13,15 +13,21 @@ export default async function SettingsPage() {
     .eq('user_id', user!.id)
     .single()
 
-  // Auto-create for new users
   if (!settings) {
     const { data: created } = await supabase
       .from('settings')
-      .insert({ user_id: user!.id, default_snooze_days: 14 })
+      .insert({ user_id: user!.id, default_snooze_days: 14, stage1_days: 3, stage2_days: 21, stage3_days: 90 })
       .select()
       .single()
     settings = created
   }
 
-  return <SettingsClient defaultSnoozeDays={settings?.default_snooze_days ?? 14} />
+  return (
+    <SettingsClient
+      defaultSnoozeDays={settings?.default_snooze_days ?? 14}
+      stage1Days={settings?.stage1_days ?? 3}
+      stage2Days={settings?.stage2_days ?? 21}
+      stage3Days={settings?.stage3_days ?? 90}
+    />
+  )
 }

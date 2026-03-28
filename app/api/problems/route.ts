@@ -26,13 +26,21 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { lc_number, title, description, difficulty, notes, solution, passed } = body
+  const { lc_number, title, description, difficulty, notes, solution, passed, stage1_days, stage2_days, stage3_days } = body
 
   if (!lc_number || !title) {
     return NextResponse.json({ error: 'lc_number and title are required' }, { status: 400 })
   }
 
-  const next_review_date = getNextReviewDate(new Date().toISOString(), '3d')
+  // Fetch global settings to compute first review date
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('stage1_days')
+    .eq('user_id', user.id)
+    .single()
+
+  const effectiveStage1Days = stage1_days ?? settings?.stage1_days ?? 3
+  const next_review_date = getNextReviewDate(effectiveStage1Days)
 
   const { data, error } = await supabase
     .from('problems')
@@ -47,6 +55,9 @@ export async function POST(req: NextRequest) {
       stage: '3d',
       next_review_date,
       user_id: user.id,
+      stage1_days: stage1_days ?? null,
+      stage2_days: stage2_days ?? null,
+      stage3_days: stage3_days ?? null,
     })
     .select()
     .single()

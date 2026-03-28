@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { getNextStage, getNextReviewDate, getStageDays, Stage } from '@/lib/supabase'
+import { getStageDays, getNextReviewDate, Stage } from '@/lib/supabase'
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// PATCH /api/problems/[id]/intervals
+// Updates per-problem stage intervals and immediately reschedules the current stage
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json()
+  const { stage1_days, stage2_days, stage3_days } = body
 
   const [{ data: problem, error: fetchError }, { data: settings }] = await Promise.all([
     supabase.from('problems').select('*').eq('id', id).single(),
@@ -15,20 +20,23 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 404 })
 
-  const currentStage = problem.stage as Stage
-  const nextStage = getNextStage(currentStage)
-
-  const updatePayload: Record<string, unknown> = {
-    stage: nextStage,
-    snoozed_until: null,
-    passed: true,
+  const updatedProblem = {
+    ...problem,
+    stage1_days: stage1_days ?? null,
+    stage2_days: stage2_days ?? null,
+    stage3_days: stage3_days ?? null,
   }
 
-  if (nextStage === 'fifo') {
-    updatePayload.next_review_date = null
-    updatePayload.fifo_entered_at = new Date().toISOString()
-  } else {
-    const days = getStageDays(nextStage, problem, settings ?? { stage1_days: 3, stage2_days: 21, stage3_days: 90 })
+  const updatePayload: Record<string, unknown> = {
+    stage1_days: stage1_days ?? null,
+    stage2_days: stage2_days ?? null,
+    stage3_days: stage3_days ?? null,
+  }
+
+  // Immediately reschedule if not in fifo
+  if (problem.stage !== 'fifo') {
+    const effectiveSettings = settings ?? { stage1_days: 3, stage2_days: 21, stage3_days: 90 }
+    const days = getStageDays(problem.stage as Stage, updatedProblem, effectiveSettings)
     updatePayload.next_review_date = getNextReviewDate(days)
   }
 
@@ -40,14 +48,5 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
-
-  await supabase.from('review_history').insert({
-    problem_id: id,
-    action: 'solved',
-    stage_before: currentStage,
-    stage_after: nextStage,
-    user_id: user.id,
-  })
-
   return NextResponse.json(updated)
 }

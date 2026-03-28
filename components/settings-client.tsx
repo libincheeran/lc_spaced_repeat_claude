@@ -9,22 +9,42 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 
-export function SettingsClient({ defaultSnoozeDays }: { defaultSnoozeDays: number }) {
+interface SettingsClientProps {
+  defaultSnoozeDays: number
+  stage1Days: number
+  stage2Days: number
+  stage3Days: number
+}
+
+export function SettingsClient({ defaultSnoozeDays, stage1Days, stage2Days, stage3Days }: SettingsClientProps) {
   const [snoozeDays, setSnoozeDays] = useState(String(defaultSnoozeDays))
+  const [s1, setS1] = useState(String(stage1Days))
+  const [s2, setS2] = useState(String(stage2Days))
+  const [s3, setS3] = useState(String(stage3Days))
   const [loading, setLoading] = useState(false)
 
   const handleSave = async () => {
-    const days = parseInt(snoozeDays)
-    if (!days || days <= 0) {
-      toast.error('Snooze days must be a positive number')
+    const snooze = parseInt(snoozeDays)
+    const stage1 = parseInt(s1)
+    const stage2 = parseInt(s2)
+    const stage3 = parseInt(s3)
+
+    if (!snooze || snooze <= 0 || !stage1 || stage1 <= 0 || !stage2 || stage2 <= 0 || !stage3 || stage3 <= 0) {
+      toast.error('All values must be positive numbers')
       return
     }
+
     setLoading(true)
     try {
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ default_snooze_days: days }),
+        body: JSON.stringify({
+          default_snooze_days: snooze,
+          stage1_days: stage1,
+          stage2_days: stage2,
+          stage3_days: stage3,
+        }),
       })
       if (!res.ok) throw new Error()
       toast.success('Settings saved')
@@ -49,28 +69,49 @@ export function SettingsClient({ defaultSnoozeDays }: { defaultSnoozeDays: numbe
         <CardHeader>
           <CardTitle className="text-base">Review Schedule</CardTitle>
           <CardDescription>
-            New problems are scheduled at 3 days → 3 weeks → 3 months, then enter the queue.
+            Global defaults for all problems. You can override these per problem on the problem detail page.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-md bg-muted/40 p-4 text-sm space-y-1">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Stage 1</span>
-              <span>Review after 3 days</span>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="stage1">Stage 1 (days)</Label>
+              <Input
+                id="stage1"
+                type="number"
+                min={1}
+                value={s1}
+                onChange={e => setS1(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">First review</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Stage 2</span>
-              <span>Review after 3 weeks</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="stage2">Stage 2 (days)</Label>
+              <Input
+                id="stage2"
+                type="number"
+                min={1}
+                value={s2}
+                onChange={e => setS2(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Second review</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Stage 3</span>
-              <span>Review after 3 months</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="stage3">Stage 3 (days)</Label>
+              <Input
+                id="stage3"
+                type="number"
+                min={1}
+                value={s3}
+                onChange={e => setS3(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Third review</p>
             </div>
-            <Separator className="my-2" />
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">After stage 3</span>
-              <span>Enters FIFO queue</span>
-            </div>
+          </div>
+          <Separator />
+          <div className="text-sm text-muted-foreground flex justify-between">
+            <span>After stage 3</span>
+            <span>Enters FIFO queue</span>
           </div>
         </CardContent>
       </Card>
@@ -80,28 +121,26 @@ export function SettingsClient({ defaultSnoozeDays }: { defaultSnoozeDays: numbe
           <CardTitle className="text-base">Default Snooze Duration</CardTitle>
           <CardDescription>
             When you snooze a problem without specifying a duration, this value is used.
-            You can always override it per snooze.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end gap-3">
-            <div className="space-y-1.5 flex-1">
-              <Label htmlFor="snooze-days">Days</Label>
-              <Input
-                id="snooze-days"
-                type="number"
-                min={1}
-                value={snoozeDays}
-                onChange={e => setSnoozeDays(e.target.value)}
-                className="w-32"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="snooze-days">Days</Label>
+            <Input
+              id="snooze-days"
+              type="number"
+              min={1}
+              value={snoozeDays}
+              onChange={e => setSnoozeDays(e.target.value)}
+              className="w-32"
+            />
           </div>
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? 'Saving...' : 'Save Settings'}
-          </Button>
         </CardContent>
       </Card>
+
+      <Button onClick={handleSave} disabled={loading}>
+        {loading ? 'Saving...' : 'Save Settings'}
+      </Button>
     </div>
   )
 }

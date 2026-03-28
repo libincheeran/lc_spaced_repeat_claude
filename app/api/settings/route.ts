@@ -12,11 +12,10 @@ export async function GET() {
     .eq('user_id', user.id)
     .single()
 
-  // Auto-create settings row for new users
   if (!data) {
     const { data: created } = await supabase
       .from('settings')
-      .insert({ user_id: user.id, default_snooze_days: 14 })
+      .insert({ user_id: user.id, default_snooze_days: 14, stage1_days: 3, stage2_days: 21, stage3_days: 90 })
       .select()
       .single()
     data = created
@@ -31,15 +30,17 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { default_snooze_days } = body
+  const { default_snooze_days, stage1_days, stage2_days, stage3_days } = body
 
-  if (!default_snooze_days || default_snooze_days <= 0) {
-    return NextResponse.json({ error: 'default_snooze_days must be a positive number' }, { status: 400 })
-  }
+  const updates: Record<string, number> = {}
+  if (default_snooze_days > 0) updates.default_snooze_days = default_snooze_days
+  if (stage1_days > 0) updates.stage1_days = stage1_days
+  if (stage2_days > 0) updates.stage2_days = stage2_days
+  if (stage3_days > 0) updates.stage3_days = stage3_days
 
   const { data, error } = await supabase
     .from('settings')
-    .upsert({ user_id: user.id, default_snooze_days })
+    .upsert({ user_id: user.id, ...updates })
     .select()
     .single()
 

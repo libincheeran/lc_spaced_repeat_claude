@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
-import { ArrowLeft, CheckCircle2, Clock, Trash2, Save } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Clock, Trash2, Save, Timer } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,6 +29,8 @@ export function ProblemDetailClient({ problem, history, defaultSnoozeDays }: Pro
   const [showSnooze, setShowSnooze] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
+  const [editingIntervals, setEditingIntervals] = useState(false)
+
   const [form, setForm] = useState({
     title: problem.title,
     description: problem.description ?? '',
@@ -36,6 +38,12 @@ export function ProblemDetailClient({ problem, history, defaultSnoozeDays }: Pro
     notes: problem.notes ?? '',
     solution: problem.solution ?? '',
     passed: problem.passed,
+  })
+
+  const [intervals, setIntervals] = useState({
+    stage1_days: problem.stage1_days != null ? String(problem.stage1_days) : '',
+    stage2_days: problem.stage2_days != null ? String(problem.stage2_days) : '',
+    stage3_days: problem.stage3_days != null ? String(problem.stage3_days) : '',
   })
 
   const set = (field: string, value: string | boolean | null) =>
@@ -93,6 +101,30 @@ export function ProblemDetailClient({ problem, history, defaultSnoozeDays }: Pro
     }
   }
 
+  const handleSaveIntervals = async () => {
+    setLoading('intervals')
+    try {
+      const payload = {
+        stage1_days: intervals.stage1_days ? parseInt(intervals.stage1_days) : null,
+        stage2_days: intervals.stage2_days ? parseInt(intervals.stage2_days) : null,
+        stage3_days: intervals.stage3_days ? parseInt(intervals.stage3_days) : null,
+      }
+      const res = await fetch(`/api/problems/${problem.id}/intervals`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Intervals updated — schedule reset immediately')
+      setEditingIntervals(false)
+      router.refresh()
+    } catch {
+      toast.error('Failed to save intervals')
+    } finally {
+      setLoading(null)
+    }
+  }
+
   const handleDelete = async () => {
     if (!confirm(`Delete #${problem.lc_number} ${problem.title}? This cannot be undone.`)) return
     setLoading('delete')
@@ -108,6 +140,8 @@ export function ProblemDetailClient({ problem, history, defaultSnoozeDays }: Pro
     }
   }
 
+  const hasCustomIntervals = problem.stage1_days != null || problem.stage2_days != null || problem.stage3_days != null
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Header */}
@@ -122,6 +156,11 @@ export function ProblemDetailClient({ problem, history, defaultSnoozeDays }: Pro
               <h1 className="text-xl font-bold">{problem.title}</h1>
               <DifficultyBadge difficulty={problem.difficulty} />
               <StageBadge stage={problem.stage} />
+              {hasCustomIntervals && (
+                <Badge variant="outline" className="text-xs border-orange-500/50 text-orange-400">
+                  Custom schedule
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
               Added {format(parseISO(problem.created_at), 'MMM d, yyyy')}
@@ -249,6 +288,96 @@ export function ProblemDetailClient({ problem, history, defaultSnoozeDays }: Pro
           )}
         </CardContent>
       </Card>
+
+      {/* Per-problem schedule */}
+      {problem.stage !== 'fifo' && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Timer className="h-4 w-4" />
+                  Review Schedule
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {hasCustomIntervals ? 'Using custom intervals for this problem.' : 'Using global defaults. Set overrides below to customize.'}
+                </p>
+              </div>
+              {!editingIntervals && (
+                <Button variant="outline" size="sm" onClick={() => setEditingIntervals(true)}>
+                  Customize
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {editingIntervals ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="s1">Stage 1 (days)</Label>
+                    <Input
+                      id="s1"
+                      type="number"
+                      min={1}
+                      placeholder="Global default"
+                      value={intervals.stage1_days}
+                      onChange={e => setIntervals(p => ({ ...p, stage1_days: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="s2">Stage 2 (days)</Label>
+                    <Input
+                      id="s2"
+                      type="number"
+                      min={1}
+                      placeholder="Global default"
+                      value={intervals.stage2_days}
+                      onChange={e => setIntervals(p => ({ ...p, stage2_days: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="s3">Stage 3 (days)</Label>
+                    <Input
+                      id="s3"
+                      type="number"
+                      min={1}
+                      placeholder="Global default"
+                      value={intervals.stage3_days}
+                      onChange={e => setIntervals(p => ({ ...p, stage3_days: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to use global defaults. Saving will immediately reschedule the current stage.
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSaveIntervals} disabled={loading === 'intervals'}>
+                    <Save className="h-3.5 w-3.5 mr-1" />
+                    {loading === 'intervals' ? 'Saving...' : 'Save & Reschedule'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingIntervals(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                {(['stage1_days', 'stage2_days', 'stage3_days'] as const).map((key, i) => (
+                  <div key={key} className="space-y-0.5">
+                    <p className="text-muted-foreground text-xs">Stage {i + 1}</p>
+                    <p className="font-medium">
+                      {problem[key] != null ? (
+                        <span className="text-orange-400">{problem[key]}d <span className="text-muted-foreground font-normal">(custom)</span></span>
+                      ) : (
+                        <span className="text-muted-foreground">Global default</span>
+                      )}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Review history */}
       {history.length > 0 && (

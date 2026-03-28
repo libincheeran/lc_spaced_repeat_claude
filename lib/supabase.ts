@@ -17,6 +17,9 @@ export interface Problem {
   next_review_date: string | null
   fifo_entered_at: string | null
   snoozed_until: string | null
+  stage1_days: number | null
+  stage2_days: number | null
+  stage3_days: number | null
   created_at: string
   updated_at: string
 }
@@ -24,6 +27,9 @@ export interface Problem {
 export interface Settings {
   user_id: string
   default_snooze_days: number
+  stage1_days: number
+  stage2_days: number
+  stage3_days: number
 }
 
 export interface ReviewHistory {
@@ -36,23 +42,23 @@ export interface ReviewHistory {
   created_at: string
 }
 
-export function getNextReviewDate(createdAt: string, stage: Stage): string {
-  const date = new Date(createdAt)
-
+// Get the number of days for a given stage, using problem override → global settings → hardcoded default
+export function getStageDays(
+  stage: Stage,
+  problem: Pick<Problem, 'stage1_days' | 'stage2_days' | 'stage3_days'>,
+  settings: Pick<Settings, 'stage1_days' | 'stage2_days' | 'stage3_days'>
+): number {
   switch (stage) {
-    case '3d':
-      date.setDate(date.getDate() + 3)
-      break
-    case '3w':
-      date.setDate(date.getDate() + 21)
-      break
-    case '3m':
-      date.setMonth(date.getMonth() + 3)
-      break
-    case 'fifo':
-      return ''
+    case '3d': return problem.stage1_days ?? settings.stage1_days ?? 3
+    case '3w': return problem.stage2_days ?? settings.stage2_days ?? 21
+    case '3m': return problem.stage3_days ?? settings.stage3_days ?? 90
+    case 'fifo': return 0
   }
+}
 
+export function getNextReviewDate(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
   return date.toISOString().split('T')[0]
 }
 
